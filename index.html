@@ -59,10 +59,29 @@
         font-weight: 700;
         line-height: 1;
         text-align: center;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
         text-shadow: 0 4px 12px rgba(0,0,0,0.4);
       }
-      .label { color: #aaaaaa; margin-bottom: 28px; text-align: center; }
+      .label { color: #aaaaaa; margin-bottom: 16px; text-align: center; }
+
+      /* Подсказка над кнопкой клика */
+      .next-upgrade-hint {
+        position: absolute;
+        top: -36px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(6px);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 13px;
+        color: #fff;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 4;
+      }
+      button#clickBtn:hover .next-upgrade-hint { opacity: 1; }
 
       button#clickBtn {
         width: 220px;
@@ -79,6 +98,11 @@
         transition: transform 0.06s, box-shadow 0.2s;
         position: relative;
         z-index: 2;
+      }
+      button#clickBtn.pulsing { animation: pulse 1.5s infinite; }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255,159,10,0); }
+        50% { box-shadow: 0 0 0 16px rgba(255,159,10,0.25); }
       }
       button#clickBtn:active { transform: scale(0.94); }
 
@@ -177,6 +201,12 @@
       }
       .buy-btn.enabled { background: var(--btn); color: var(--btn-text); }
 
+      .level-badge {
+        font-size: 12px;
+        color: #888;
+        margin-right: 6px;
+      }
+
       /* Скрытие неактивных экранов */
       .view { display: none; text-align: center; }
       .view.active { display: block; }
@@ -193,7 +223,10 @@
     <div id="viewGame" class="view active">
       <div id="score">0</div>
       <div class="label">Монет: <span id="coins">0</span></div>
-      <button id="clickBtn">КЛИК</button>
+      <button id="clickBtn">
+        КЛИК
+        <span class="next-upgrade-hint" id="hintPower">До следующего улучшения: <span id="hintAmountPower">50</span> монет</span>
+      </button>
     </div>
 
     <!-- Экран магазина -->
@@ -204,7 +237,7 @@
         <!-- Сила клика -->
         <div class="upgrade-card">
           <div class="upgrade-info">
-            <span class="upgrade-name">💪 Сила клика +1</span>
+            <span class="upgrade-name">💪 Сила клика <span class="level-badge" id="lvlPower">Lv.1</span></span>
             <span class="upgrade-desc">Каждый клик приносит на 1 больше</span>
           </div>
           <div class="upgrade-controls">
@@ -217,7 +250,7 @@
         <!-- Автокликер -->
         <div class="upgrade-card">
           <div class="upgrade-info">
-            <span class="upgrade-name">🤖 Автокликер</span>
+            <span class="upgrade-name">🤖 Автокликер <span class="level-badge">Lv.1</span></span>
             <span class="upgrade-desc">Даёт монеты каждую секунду (зависит от силы клика)</span>
           </div>
           <div class="upgrade-controls">
@@ -243,11 +276,14 @@
       const scoreEl = document.getElementById('score');
       const coinsEl = document.getElementById('coins');
       const btn = document.getElementById('clickBtn');
+      const hintPowerEl = document.getElementById('hintPower');
+      const hintAmountPowerEl = document.getElementById('hintAmountPower');
       const btnBuyPower = document.getElementById('btnBuyPower');
       const btnBuyAuto = document.getElementById('btnBuyAuto');
 
       const pricePowerEl = document.getElementById('pricePower');
       const progPowerEl = document.getElementById('progPower');
+      const lvlPowerEl = document.getElementById('lvlPower');
       const priceAutoEl = document.getElementById('priceAuto');
       const progAutoEl = document.getElementById('progAuto');
 
@@ -267,18 +303,24 @@
       // Автосохранение каждые 10 секунд
       setInterval(save, 10000);
 
+      function getPowerCost() {
+        return 50 + (power - 1) * 25; // растёт: 50, 75, 100, ...
+      }
+
       function updateUI() {
         scoreEl.textContent = coins;
         coinsEl.textContent = coins;
 
-        // Цена и прогресс силы клика
-        const costPower = 50;
+        // Сила клика
+        const costPower = getPowerCost();
         pricePowerEl.textContent = costPower;
         progPowerEl.style.width = `${Math.min(100, (coins / costPower) * 100)}%`;
         btnBuyPower.disabled = coins < costPower;
         btnBuyPower.classList.toggle('enabled', !btnBuyPower.disabled);
+        lvlPowerEl.textContent = `Lv.${power}`;
+        hintAmountPowerEl.textContent = costPower - coins;
 
-        // Цена и прогресс автокликера
+        // Автокликер
         const costAuto = 100;
         priceAutoEl.textContent = costAuto;
         progAutoEl.style.width = `${Math.min(100, (coins / costAuto) * 100)}%`;
@@ -287,10 +329,12 @@
           btnBuyAuto.textContent = 'Автокликер: ВКЛ';
           btnBuyAuto.disabled = true;
           btnBuyAuto.classList.remove('enabled');
+          btn.classList.add('pulsing'); // пульсация кнопки
         } else {
           btnBuyAuto.disabled = coins < costAuto;
           btnBuyAuto.textContent = 'Купить';
           btnBuyAuto.classList.toggle('enabled', !btnBuyAuto.disabled);
+          btn.classList.remove('pulsing');
         }
       }
 
@@ -318,8 +362,9 @@
       });
 
       btnBuyPower.addEventListener('click', () => {
+        const cost = getPowerCost();
         if (!btnBuyPower.disabled) {
-          coins -= 50;
+          coins -= cost;
           power++;
           updateUI();
           save();
@@ -353,21 +398,3 @@
 
       // Переключение вкладок
       function switchView(isGame) {
-        if (isGame) {
-          tabGame.classList.add('active');
-          tabShop.classList.remove('active');
-          viewGame.classList.add('active');
-          viewShop.classList.remove('active');
-        } else {
-          tabGame.classList.remove('active');
-          tabShop.classList.add('active');
-          viewGame.classList.remove('active');
-          viewShop.classList.add('active');
-        }
-      }
-
-      tabGame.addEventListener('click', () => switchView(true));
-      tabShop.addEventListener('click', () => switchView(false));
-    </script>
-  </body>
-</html>
